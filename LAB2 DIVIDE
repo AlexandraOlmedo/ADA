@@ -1,0 +1,65 @@
+#include <stdio.h>
+//Creamos la funcion que hara el procedimiento
+int dividir(int dividendo, int divisor) {
+    // Definir los límites de un entero de 32 bits
+    int LIMITE_MAXIMO = 2147483647;  // 2^31 - 1
+    int LIMITE_MINIMO = -2147483648; // -2^31
+
+    //Definimos el caso para el que va a dar como resultado el limite maximo 
+    if (dividendo == LIMITE_MINIMO && divisor == -1) {
+        return LIMITE_MAXIMO;
+    }
+
+    // Determinar el signo del resultado(llas comparaciones las hacemos deacuerdo con la ley de los signos)
+    int signo = 1;
+    if (dividendo < 0 && divisor > 0) {
+        signo = -1;
+    }
+    if (dividendo > 0 && divisor < 0) {
+        signo = -1;
+    }
+
+    // Para hacer el procedimiento procedimiento primero convertimos el divisor y e dividendo en numeros positivos
+    if (dividendo < 0) {
+        dividendo = -dividendo;
+    }
+    if (divisor < 0) {
+        divisor = -divisor;
+    }
+
+    // Restamos y el cociente es practicamente un contador 
+    int cociente = 0;
+    while (dividendo >= divisor) {
+        dividendo = dividendo - divisor;
+        cociente = cociente + 1;
+    }
+
+    // Aplicar el signo al resultado
+    if (signo == -1) {
+        cociente = -cociente;
+    }
+
+    return cociente;
+}
+
+int main() {
+    int dividendo, divisor;
+
+    // Pedir los números al usuario
+    printf("Ingrese el dividendo: ");
+    scanf("%d", &dividendo);
+    printf("Ingrese el divisor: ");
+    scanf("%d", &divisor);
+
+    // Verificar si el divisor es cero
+    if (divisor == 0) {
+        printf("Error: No se puede dividir entre cero.\n");
+        return 1; // Código de error
+    }
+
+    // Calcular y mostrar el resultado llamando a la funcion dividir
+    int resultado = dividir(dividendo, divisor);
+    printf("Resultado de %d / %d = %d\n", dividendo, divisor, resultado);
+
+    return 0;
+}
