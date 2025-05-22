@@ -1,0 +1,167 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_TREE_HT 100
+#define NUM_CHARS 256
+
+// Nodo del árbol y lista
+typedef struct Nodo {
+    char caracter;
+    int frecuencia;
+    struct Nodo *izq, *der;
+    struct Nodo *siguiente;  // para lista ordenada
+} Nodo;
+
+Nodo* nuevoNodo(char caracter, int frecuencia) {
+    Nodo* nodo = (Nodo*)malloc(sizeof(Nodo));
+    nodo->caracter = caracter;
+    nodo->frecuencia = frecuencia;
+    nodo->izq = nodo->der = nodo->siguiente = NULL;
+    return nodo;
+}
+
+// Inserta un nodo en orden creciente de frecuencia
+void insertarOrdenado(Nodo** cabeza, Nodo* nuevo) {
+    if (*cabeza == NULL || nuevo->frecuencia < (*cabeza)->frecuencia) {
+        nuevo->siguiente = *cabeza;
+        *cabeza = nuevo;
+    } else {
+        Nodo* actual = *cabeza;
+        while (actual->siguiente && actual->siguiente->frecuencia <= nuevo->frecuencia)
+            actual = actual->siguiente;
+        nuevo->siguiente = actual->siguiente;
+        actual->siguiente = nuevo;
+    }
+}
+
+// Construye el árbol de Huffman usando lista ordenada
+Nodo* construirHuffman_lista(int freq[]) {
+    Nodo* lista = NULL;
+
+    for (int i = 0; i < NUM_CHARS; i++) {
+        if (freq[i]) {
+            Nodo* nodo = nuevoNodo((char)i, freq[i]);
+            insertarOrdenado(&lista, nodo);
+        }
+    }
+
+    while (lista && lista->siguiente) {
+        Nodo* izq = lista;
+        Nodo* der = lista->siguiente;
+        lista = der->siguiente;
+
+        Nodo* fusion = nuevoNodo('$', izq->frecuencia + der->frecuencia);
+        fusion->izq = izq;
+        fusion->der = der;
+
+        insertarOrdenado(&lista, fusion);
+    }
+
+    return lista;
+}
+
+// Muestra el árbol (rotado 90°)
+void imprimirArbol(Nodo* raiz, int nivel) {
+    if (!raiz) return;
+    imprimirArbol(raiz->der, nivel + 1);
+    for (int i = 0; i < nivel; i++) printf("   ");
+    if (raiz->caracter >= 32 && raiz->caracter <= 126)
+        printf("'%c'(%d)\n", raiz->caracter, raiz->frecuencia);
+    else
+        printf("0x%02X(%d)\n", (unsigned char)raiz->caracter, raiz->frecuencia);
+    imprimirArbol(raiz->izq, nivel + 1);
+}
+
+// Genera los códigos Huffman
+void generarCodigos(Nodo* raiz, char* codigo, int top, char codigos[NUM_CHARS][MAX_TREE_HT]) {
+    if (raiz->izq) {
+        codigo[top] = '0';
+        generarCodigos(raiz->izq, codigo, top + 1, codigos);
+    }
+    if (raiz->der) {
+        codigo[top] = '1';
+        generarCodigos(raiz->der, codigo, top + 1, codigos);
+    }
+    if (!raiz->izq && !raiz->der) {
+        codigo[top] = '\0';
+        strcpy(codigos[(int)raiz->caracter], codigo);
+        if (raiz->caracter >= 32 && raiz->caracter <= 126)
+            printf("Código de '%c': %s\n", raiz->caracter, codigos[(int)raiz->caracter]);
+        else
+            printf("Código de 0x%02X: %s\n", (unsigned char)raiz->caracter, codigos[(int)raiz->caracter]);
+    }
+}
+
+// Comprime el texto y guarda en codificado.txt
+void comprimirTexto(const char* texto, char codigos[NUM_CHARS][MAX_TREE_HT], int* bitsOriginales, int* bitsComprimidos) {
+    FILE* salida = fopen("codificado.txt", "w");
+    for (int i = 0; texto[i] != '\0'; i++) {
+        fputs(codigos[(int)texto[i]], salida);
+        *bitsOriginales += 8;
+        *bitsComprimidos += strlen(codigos[(int)texto[i]]);
+    }
+    fclose(salida);
+}
+
+// Decodifica desde codificado.txt usando el árbol
+void decodificar(Nodo* raiz) {
+    FILE* entrada = fopen("codificado.txt", "r");
+    char bit;
+    Nodo* actual = raiz;
+    printf("\nTexto decodificado:\n");
+    while ((bit = fgetc(entrada)) != EOF) {
+        actual = (bit == '0') ? actual->izq : actual->der;
+        if (!actual->izq && !actual->der) {
+            printf("%c", actual->caracter);
+            actual = raiz;
+        }
+    }
+    fclose(entrada);
+}
+
+int main() {
+    FILE* archivo = fopen("entrada.txt", "r");
+    if (!archivo) {
+        printf("No se pudo abrir el archivo.\n");
+        return 1;
+    }
+
+    char texto[10000];
+    fread(texto, sizeof(char), 10000, archivo);
+    fclose(archivo);
+
+    int freq[NUM_CHARS] = {0};
+    for (int i = 0; texto[i] != '\0'; i++) freq[(int)texto[i]]++;
+
+    printf("Diccionario de frecuencias:\n");
+    for (int i = 0; i < NUM_CHARS; i++) {
+        if (freq[i]) {
+            if (i >= 32 && i <= 126)
+                printf("'%c': %d\n", i, freq[i]);
+            else
+                printf("0x%02X: %d\n", i, freq[i]);
+        }
+    }
+
+    Nodo* raiz = construirHuffman_lista(freq);
+
+    printf("\nÁrbol de Huffman (rotado):\n");
+    imprimirArbol(raiz, 0);
+
+    printf("\nCódigos Huffman:\n");
+    char codigos[NUM_CHARS][MAX_TREE_HT] = {{0}};
+    char codigo[MAX_TREE_HT];
+    generarCodigos(raiz, codigo, 0, codigos);
+
+    int bitsOriginales = 0, bitsComprimidos = 0;
+    comprimirTexto(texto, codigos, &bitsOriginales, &bitsComprimidos);
+
+    printf("\nBits originales: %d\n", bitsOriginales);
+    printf("Bits comprimidos: %d\n", bitsComprimidos);
+    printf("Tasa de compresión: %.2f%%\n", 100.0 * bitsComprimidos / bitsOriginales);
+
+    decodificar(raiz);
+
+    return 0;
+}
